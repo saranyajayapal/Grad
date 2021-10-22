@@ -1,0 +1,65 @@
+---
+Description: Setup an Ubuntu 20.04 running the Nginx Web server
+Parameters: 
+  KeyName: 
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of existing EC2 Keypair to allow SSH access to the instance
+    AllowedPattern: ".+"
+  SSHCIDR:
+    Type: String
+    Description: CIDR block allowing SSH
+    Default: 131.247.0.0/16 
+    
+Resources: 
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e67e426f25ce0d7
+      InstanceType: t2.micro
+      SecurityGroups:
+      - !Ref WebserverSecurityGroup
+      Tags:
+      - Key: Name 
+        Value: Ubuntu Web Server
+      KeyName: !Ref KeyName
+      UserData:
+        'Fn::Base64': |
+          #!/bin/bash -x
+          #set timezone
+          timedatactl set-timezone America/New_York
+          #install and setup nginx
+          apt-get update
+          apt-get install -y nginx
+          PublicDNS=$(curl http://169.254.169.254/latest/meta-data/public-hostname)
+          Region=$(curl http://169.254.169.254/latest/meta-data/placement/region)
+          cd /var/www/html
+          echo "<Title>Saranya Jayapal</Title><h1>Saranya Jayapal</h1>" > index.html 
+          echo "<h1>PublicDNSName: "$PublicDNS"</h1>" >> index.html
+          echo "<h1>Region: "$Region"</h1>" >> index.html
+  WebserverSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: Allows HTTP from anywhere and SSH from CIDR Block 
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 80
+        ToPort: 80
+        IpProtocol: tcp
+      - CidrIp: !Ref SSHCIDR
+        FromPort: 22
+        ToPort: 22
+        IpProtocol: tcp
+    
+    
+Outputs:
+  WebURL:
+    Description: The URL for the web page.
+    Value: !Sub 'http://${EC2Instance.PublicIp}'
+  PublicDNS:
+    Description: The AWS public DNS name for the instance.
+    Value: !Sub '${EC2Instance.PublicDnsName}'
+  Region:
+    Description: The region.
+    Value: !Ref 'AWS::Region'
+
+
